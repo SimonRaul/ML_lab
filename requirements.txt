@@ -1,0 +1,8 @@
+# Requires Python 3.13 or higher
+pandas>=2.2.3
+numpy>=2.1.0
+scikit-learn>=1.5.2
+matplotlib>=3.9.2
+seaborn>=0.13.2
+jupyter>=1.0.0
+ipykernel>=6.29.0

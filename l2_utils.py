@@ -13,7 +13,7 @@ from sklearn.metrics import f1_score
 DATA_PATH = Path(__file__).parent / "data" / "AmesHousing.csv"
 
 PRICE_BINS = [0, 100_000, 130_000, 180_000, 250_000, 400_000, np.inf]
-LOG_BIN_EDGES = np.log1p([0.0, 100_000.0, 130_000.0, 180_000.0, 250_000.0, 400_000.0, 1e9])
+LOG_BIN_EDGES = np.log1p([0.0, 100_000.0, 130_000.0, 180_000.0, 250_000.0, 400_000.0, np.inf])
 CLASS_NAMES = ["<100k", "100-130k", "130-180k", "180-250k", "250-400k", ">=400k"]
 N_CLASSES = len(CLASS_NAMES)
 
@@ -260,6 +260,7 @@ class OrdinalPriceMetaGenerator:
     def fit_transform_oof(self, X_train: pd.DataFrame, log_y_train: np.ndarray) -> pd.DataFrame:
         n = len(X_train)
         oof_xgb, oof_lgb, oof_ridge = np.zeros(n), np.zeros(n), np.zeros(n)
+        sigma_by_row = np.zeros(n)
 
         kf = KFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
         for tr_i, va_i in kf.split(X_train):
@@ -273,12 +274,19 @@ class OrdinalPriceMetaGenerator:
             lgb_r.fit(X_tr_f, y_tr_f)
             ridge_r.fit(scaler.fit_transform(X_tr_f), y_tr_f)
 
+            train_blend = (
+                0.50 * xgb_r.predict(X_tr_f) +
+                0.35 * lgb_r.predict(X_tr_f) +
+                0.15 * ridge_r.predict(scaler.transform(X_tr_f))
+            )
+            sigma_by_row[va_i] = max(float(np.std(y_tr_f - train_blend, ddof=1)), 1e-6)
+
             oof_xgb[va_i] = xgb_r.predict(X_va_f)
             oof_lgb[va_i] = lgb_r.predict(X_va_f)
             oof_ridge[va_i] = ridge_r.predict(scaler.transform(X_va_f))
 
         oof_blend = 0.50 * oof_xgb + 0.35 * oof_lgb + 0.15 * oof_ridge
-        self.sigma_oof_ = float(np.std(log_y_train - oof_blend, ddof=1))
+        self.sigma_oof_ = float(np.mean(sigma_by_row))
 
         self.xgb_full_, self.lgb_full_, self.ridge_full_ = self._make_regressors()
         self.scaler_full_ = StandardScaler()
@@ -286,11 +294,11 @@ class OrdinalPriceMetaGenerator:
         self.lgb_full_.fit(X_train, log_y_train)
         self.ridge_full_.fit(self.scaler_full_.fit_transform(X_train), log_y_train)
 
-        return self._append_meta_columns(X_train, oof_xgb, oof_lgb, oof_ridge, self.sigma_oof_)
+        return self._append_meta_columns(X_train, oof_xgb, oof_lgb, oof_ridge, sigma_by_row)
 
     def transform_test(self, X_test: pd.DataFrame) -> pd.DataFrame:
         p_xgb = self.xgb_full_.predict(X_test)
-        p_lgb = self.lg_full_.predict(X_test) if hasattr(self, "lg_full_") else self.lgb_full_.predict(X_test)
+        p_lgb = self.lgb_full_.predict(X_test)
         p_ridge = self.ridge_full_.predict(self.scaler_full_.transform(X_test))
         return self._append_meta_columns(X_test, p_xgb, p_lgb, p_ridge, self.sigma_oof_)
 

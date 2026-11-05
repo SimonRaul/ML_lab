@@ -1,8 +1,14 @@
-# Requires Python 3.13 or higher
-pandas>=2.2.3
-numpy>=2.1.0
-scikit-learn>=1.5.2
-matplotlib>=3.9.2
-seaborn>=0.13.2
+numpy>=1.26.0
+pandas>=2.1.0
+scipy>=1.11.0
+scikit-learn>=1.4.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+xgboost>=2.0.0
+lightgbm>=4.3.0
+optuna>=3.6.0
+plotly>=5.20.0
+anywidget>=0.9.0
+imbalanced-learn>=0.12.0
 jupyter>=1.0.0
 ipykernel>=6.29.0
